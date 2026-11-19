@@ -3295,6 +3295,7 @@ export const $ZodRecord: core.$constructor<$ZodRecord> = /*@__PURE__*/ core.$con
     if (values && !def.partial) {
       payload.value = memo ? memo.alloc(inst, payload, {}, ctx) : {};
       const recordKeys = new Set<string | symbol>();
+      const optin = def.valueType._zod.optin;
       for (const key of values) {
         if (typeof key === "string" || typeof key === "number" || typeof key === "symbol") {
           recordKeys.add(typeof key === "number" ? key.toString() : key);
@@ -3317,6 +3318,7 @@ export const $ZodRecord: core.$constructor<$ZodRecord> = /*@__PURE__*/ core.$con
           }
           const outKey = util.toPropertyKey(keyResult.value);
           if (outKey === "__proto__") continue;
+          const isPresent = key in input;
           const result = def.valueType._zod.run({ value: input[key], issues: [] }, ctx);
 
           if (result instanceof Promise) {
@@ -3324,6 +3326,14 @@ export const $ZodRecord: core.$constructor<$ZodRecord> = /*@__PURE__*/ core.$con
               result.then((result) => {
                 if (result.issues.length) {
                   util.pushPrefixed(payload.issues, key, result.issues);
+                } else if (!isPresent && optin === undefined) {
+                  payload.issues.push({
+                    code: "invalid_type",
+                    expected: "nonoptional",
+                    input: undefined,
+                    path: [key],
+                  });
+                  return;
                 }
                 payload.value[outKey] = result.value;
               })
@@ -3331,6 +3341,14 @@ export const $ZodRecord: core.$constructor<$ZodRecord> = /*@__PURE__*/ core.$con
           } else {
             if (result.issues.length) {
               util.pushPrefixed(payload.issues, key, result.issues);
+            } else if (!isPresent && optin === undefined) {
+              payload.issues.push({
+                code: "invalid_type",
+                expected: "nonoptional",
+                input: undefined,
+                path: [key],
+              });
+              continue;
             }
             payload.value[outKey] = result.value;
           }

@@ -902,3 +902,54 @@ test("a finite __proto__ key is ignored whether present or missing", () => {
   expect(Object.prototype.hasOwnProperty.call(parsed, "__proto__")).toBe(false);
   expect(schema.parse(Object.fromEntries([["__proto__", 123]]))).toEqual({});
 });
+
+test("exhaustive record rejects missing keys even when value schema accepts undefined", async () => {
+  const litAny = z.record(z.literal("a"), z.any());
+  const r1 = litAny.safeParse({});
+  expect(r1.success).toBe(false);
+  if (!r1.success) {
+    expect(r1.error.issues).toMatchObject([{ code: "invalid_type", expected: "nonoptional", path: ["a"] }]);
+  }
+  expect(litAny.parse({ a: undefined })).toStrictEqual({ a: undefined });
+
+  const enumUnknown = z.record(z.enum(["a", "b"]), z.unknown());
+  const r2 = enumUnknown.safeParse({ a: 1 });
+  expect(r2.success).toBe(false);
+  if (!r2.success) {
+    expect(r2.error.issues).toMatchObject([{ code: "invalid_type", expected: "nonoptional", path: ["b"] }]);
+  }
+  expect(enumUnknown.parse({ a: 1, b: undefined })).toStrictEqual({ a: 1, b: undefined });
+
+  const undefVal = z.record(z.literal("a"), z.undefined());
+  expect(undefVal.safeParse({}).success).toBe(false);
+  expect(undefVal.parse({ a: undefined })).toStrictEqual({ a: undefined });
+
+  const unionUndef = z.record(z.literal("a"), z.union([z.string(), z.undefined()]));
+  expect(unionUndef.safeParse({}).success).toBe(false);
+  expect(unionUndef.parse({ a: undefined })).toStrictEqual({ a: undefined });
+
+  const voidVal = z.record(z.literal("a"), z.void());
+  expect(voidVal.safeParse({}).success).toBe(false);
+  expect(voidVal.parse({ a: undefined })).toStrictEqual({ a: undefined });
+
+  const coercedVal = z.record(z.literal("a"), z.coerce.string());
+  expect(coercedVal.safeParse({}).success).toBe(false);
+  expect(coercedVal.parse({ a: undefined })).toStrictEqual({ a: "undefined" });
+
+  const numKey = z.record(z.literal(1), z.any());
+  expect(numKey.safeParse({}).success).toBe(false);
+  expect(numKey.parse({ 1: undefined })).toStrictEqual({ 1: undefined });
+
+  const asyncVal = z.record(
+    z.literal("a"),
+    z.any().refine(async () => true)
+  );
+  const rAsync = await asyncVal.safeParseAsync({});
+  expect(rAsync.success).toBe(false);
+  if (!rAsync.success) {
+    expect(rAsync.error.issues).toMatchObject([{ code: "invalid_type", expected: "nonoptional", path: ["a"] }]);
+  }
+  expect(await asyncVal.parseAsync({ a: undefined })).toStrictEqual({ a: undefined });
+
+  expect(z.partialRecord(z.enum(["a", "b"]), z.any()).parse({ a: 1 })).toStrictEqual({ a: 1 });
+});

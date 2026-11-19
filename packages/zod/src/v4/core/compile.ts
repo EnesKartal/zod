@@ -2016,7 +2016,11 @@ function generateRecordCheck(doc: Doc, ctx: CompileContext, schema: SomeType, ac
       const outKey = generateCheck(doc, ctx, def.keyType, keyConst);
       // Read the property once. Passing the raw expression let compileChild validate one read while the output write performed a second, so a getter could hand back a value nothing had checked.
       const valueVar = newVar(ctx);
-      doc.write(`const ${valueVar} = ${accessor}[${literalPropertyKey(ctx, inputKey)}];`);
+      const kx = literalPropertyKey(ctx, inputKey);
+      doc.write(`const ${valueVar} = ${accessor}[${kx}];`);
+      if (requiresPresenceCheck(def.valueType)) {
+        doc.write(`if (!(${kx} in ${accessor})) return INVALID;`);
+      }
       const valOutput = compileChild(doc, ctx, def.valueType, valueVar);
       if (outKey === keyConst) {
         doc.write(`${outputVar}[${outKey}] = ${valOutput};`);
